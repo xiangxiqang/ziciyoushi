@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>字词优势效应实验</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #1a1a2e; color: #eee;
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; overflow: hidden;
+  }
+  #app { width: 100%; max-width: 640px; padding: 20px; text-align: center; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  h1 { font-size: 22px; margin: 10px 0; }
+  p { font-size: 16px; line-height: 1.7; color: #ccc; }
+  .small { font-size: 14px; color: #999; }
+
+  button {
+    font-size: 18px; padding: 14px 28px; margin: 10px 6px;
+    border: none; border-radius: 10px; cursor: pointer;
+    background: #4a6cf7; color: #fff; min-height: 52px;
+    transition: background .15s;
+  }
+  button:active { background: #3a57d0; }
+  button.opt {
+    width: 100px; height: 80px; font-size: 32px; font-weight: bold;
+    margin: 8px; background: #2d3250; color: #fff;
+  }
+  button.opt:active { background: #4a6cf7; }
+
+  #fixation, #stimulus, #mask {
+    font-size: 48px; font-weight: bold; letter-spacing: 4px;
+    height: 80px; line-height: 80px; user-select: none;
+  }
+  #stimulus { color: #fff; }
+  #mask { color: #555; }
+  .hidden { visibility: hidden; }
+
+  .progress { font-size: 13px; color: #888; margin-bottom: 12px; }
+  #resultTable { font-size: 15px; line-height: 1.9; }
+  #resultTable b { color: #7ea1ff; }
+  input[type=text] {
+    font-size: 16px; padding: 10px; border-radius: 8px;
+    border: 1px solid #555; background: #2d3250; color: #fff;
+    width: 200px; text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 欢迎页 -->
+  <div class="screen active" id="welcome">
+    <h1>字词优势效应实验</h1>
+    <p>欢迎参加本实验。<br>
+    屏幕中央会快速闪现一串字母，随后被符号遮挡。<br>
+    请从下方两个字母中选出刚才闪现串中<b>指定位置</b>的字母。</p >
+    <p class="small">尽量又快又准。实验约3分钟。</p >
+    <p class="small">请输入被试编号：</p >
+    <input type="text" id="subjId" placeholder="如 S001" value="">
+    <br>
+    <button onclick="startExp()">开始实验</button>
+  </div>
+
+  <!-- 指导语 -->
+  <div class="screen" id="instruction">
+    <h1>实验说明</h1>
+    <p>1. 屏幕先出现 "+" 注视点，请注视它。<br>
+    2. 随后闪现字母串（极短），立即被符号遮挡。<br>
+    3. 屏幕下方出现两个字母选项，请选择<b>目标位置</b>上出现的字母。<br>
+    4. 目标位置会在闪现前用箭头标出。</p >
+    <p class="small">先进行 6 次练习，然后进入正式实验。</p >
+    <button onclick="startPractice()">开始练习</button>
+  </div>
+
+  <!-- 实验运行页 -->
+  <div class="screen" id="run">
+    <div class="progress" id="progress"></div>
+    <div id="targetHint" class="small" style="margin-bottom:6px;"></div>
+    <div id="fixation" class="hidden">+</div>
+    <div id="stimulus" class="hidden"></div>
+    <div id="mask" class="hidden"></div>
+    <div id="options" style="margin-top:20px;"></div>
+  </div>
+
+  <!-- 结束页 -->
+  <div class="screen" id="end">
+    <h1>实验结束</h1>
+    <div id="resultTable"></div>
+    <p class="small">感谢参与！点击下方按钮下载数据。</p >
+    <button onclick="downloadData()">下载数据(CSV)</button>
+    <button onclick="location.reload()">重新开始</button>
+  </div>
+
+</div>
+
+<script>
+/* ============ 实验材料 ============ */
+// 每个材料：{word: 单词, nonword: 非词, pos: 目标位置(0/1/2/3), target: 正确字母, distractor: 干扰字母}
+const MATERIALS = [
+  {word:"WORD", nonword:"OWRD", pos:0, target:"W", distractor:"M"},
+  {word:"FISH", nonword:"FIHK", pos:1, target:"I", distractor:"E"},
+  {word:"TREE", nonword:"TRSE", pos:2, target:"E", distractor:"A"},
+  {word:"MOON", nonword:"MOOM", pos:2, target:"O", distractor:"U"},
+  {word:"BOOK", nonword:"BOOC", pos:3, target:"K", distractor:"T"},
+  {word:"STAR", nonword:"STAP", pos:3, target:"R", distractor:"L"},
+  {word:"CLOUD", nonword:"CLOUN", pos:4, target:"D", distractor:"B"},
+  {word:"TRAIN", nonword:"TRAIK", pos:4, target:"N", distractor:"M"},
+  {word:"LIGHT", nonword:"LIGHP", pos:4, target:"T", distractor:"D"},
+  {word:"BRAIN", nonword:"BRAIK", pos:4, target:"N", distractor:"R"},
+  {word:"WATER", nonword:"WATEK", pos:4, target:"R", distractor:"P"},
+  {word:"MUSIC", nonword:"MUSIK", pos:3, target:"I", distractor:"E"},
+  {word:"PLANT", nonword:"PLAMT", pos:3, target:"N", distractor:"M"},
+  {word:"DREAM", nonword:"DREAK", pos:4, target:"M", distractor:"N"},
+  {word:"HOUSE", nonword:"HOUCE", pos:3, target:"S", distractor:"C"},
+  {word:"CLOCK", nonword:"CLOCF", pos:4, target:"K", distractor:"F"},
+  {word:"BREAD", nonword:"BREAP", pos:4, target:"D", distractor:"P"},
+  {word:"GRASS", nonword:"GRACS", pos:3, target:"S", distractor:"C"},
+  {word:"SMILE", nonword:"SMILF", pos:4, target:"E", distractor:"F"},
+  {word:"NIGHT", nonword:"NIGHF", pos:4, target:"T", distractor:"F"},
+];
+
+/* ============ 状态 ============ */
+let subjectId = "";
+let trials = [];          // 正式试次
+let practiceTrials = [];  // 练习试次
+let current = 0;
+let isPractice = false;
+let data = [];            // 记录
+let stimOnset = 0;
+let awaitingResponse = false;
+let currentTrial = null;
+
+/* ============ 工具 ============ */
+function shuffle(a) {
+  const arr = a.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ============ 构造试次 ============ */
+// 每条材料生成 3 个试次：单词 / 非词 / 单字母
+function buildTrials() {
+  const arr = [];
+  MATERIALS.forEach((m, idx) => {
+    // 单词条件
+    arr.push({ type:"word", display:m.word, pos:m.pos, target:m.target, distractor:m.distractor, key:idx });
+    // 非词条件
+    arr.push({ type:"nonword", display:m.nonword, pos:m.pos, target:m.target, distractor:m.distractor, key:idx });
+    // 单字母条件：只显示目标位置字母，位置居中处理
+    arr.push({ type:"letter", display:m.target, pos:0, target:m.target, distractor:m.distractor, key:idx });
+  });
+  return shuffle(arr);
+}
+
+/* ============ 启动 ============ */
+function startExp() {
+  const id = document.getElementById('subjId').value.trim();
+  subjectId = id || ("S" + Date.now());
+  show('instruction');
+}
+
+function startPractice() {
+  isPractice = true;
+  practiceTrials = buildTrials().slice(0, 6);
+  trials = practiceTrials;
+  current = 0;
+  show('run');
+  nextTrial();
+}
+
+function startFormal() {
+  isPractice = false;
+  trials = buildTrials();
+  current = 0;
+  show('run');
+  nextTrial();
+}
+
+/* ============ 试次流程 ============ */
+function nextTrial() {
+  if (current >= trials.length) {
+    if (isPractice) { startFormal(); }
+    else { finish(); }
+    return;
+  }
+  currentTrial = trials[current];
+  awaitingResponse = false;
+
+  const fix = document.getElementById('fixation');
+  const stim = document.getElementById('stimulus');
+  const mask = document.getElementById('mask');
+  const opts = document.getElementById('options');
+  const hint = document.getElementById('targetHint');
+  const prog = document.getElementById('progress');
+
+  prog.textContent = (isPractice ? "练习 " : "正式 ") + (current + 1) + " / " + trials.length;
+  opts.innerHTML = "";
+  stim.className = "hidden";
+  mask.className = "hidden";
+  fix.className = "";
+  fix.textContent = "+";
+  hint.textContent = "请注视中央的 +";
+
+  // 500ms 注视点
+  setTimeout(() => {
+    fix.className = "hidden";
+
+    // 显示目标位置提示（用下划线标记）
+    const posText = "位置：" + (currentTrial.pos + 1);
+    hint.textContent = posText;
+
+    // 呈现刺激
+    stim.textContent = currentTrial.display;
+    stim.className = "";
+    stimOnset = performance.now();
+
+    // 50ms 后掩蔽
+    setTimeout(() => {
+      stim.className = "hidden";
+      // 掩蔽长度与刺激一致（单字母条件掩蔽1个）
+      const len = currentTrial.display.length;
+      mask.textContent = "#".repeat(len);
+      mask.className = "";
+
+      // 掩蔽 500ms 后出现选项
+      setTimeout(() => {
+        mask.className = "hidden";
+        hint.textContent = "请选择位置 " + (currentTrial.pos + 1) + " 上的字母";
+        showOptions();
+      }, 500);
+    }, 50);
+  }, 500);
+}
+
+function showOptions() {
+  const opts = document.getElementById('options');
+  const pair = Math.random() < 0.5
+    ? [currentTrial.target, currentTrial.distractor]
+    : [currentTrial.distractor, currentTrial.target];
+
+  opts.innerHTML = "";
+  pair.forEach(ch => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.textContent = ch;
+    b.onclick = () => respond(ch);
+    opts.appendChild(b);
+  });
+  awaitingResponse = true;
+}
+
+function respond(choice) {
+  if (!awaitingResponse) return;
+  awaitingResponse = false;
+  const rt = Math.round(performance.now() - stimOnset);
+  const correct = choice === currentTrial.target ? 1 : 0;
+
+  data.push({
+    subject: subjectId,
+    block: isPractice ? "practice" : "formal",
+    trial: current + 1,
+    type: currentTrial.type,
+    display: currentTrial.display,
+    pos: currentTrial.pos + 1,
+    target: currentTrial.target,
+    distractor: currentTrial.distractor,
+    choice: choice,
+    correct: correct,
+    rt: rt
+  });
+
+  current++;
+  nextTrial();
+}
+
+/* ============ 结束 ============ */
+function finish() {
+  show('end');
+  const formal = data.filter(d => d.block === "formal");
+  const types = ["word", "nonword", "letter"];
+  const names = { word:"单词", nonword:"非词", letter:"单字母" };
+  let html = "<p>各条件结果：</p >";
+  types.forEach(t => {
+    const sub = formal.filter(d => d.type === t);
+    if (sub.length === 0) return;
+    const acc = (sub.reduce((s,d)=>s+d.correct,0) / sub.length * 100).toFixed(1);
+    const meanRT = Math.round(sub.reduce((s,d)=>s+d.rt,0) / sub.length);
+    html += `<div><b>${names[t]}</b>：正确率 ${acc}%　平均反应时 ${meanRT} ms</div>`;
+  });
+  document.getElementById('resultTable').innerHTML = html;
+}
+
+function downloadData() {
+  let csv = "subject,block,trial,type,display,pos,target,distractor,choice,correct,rt\n";
+  data.forEach(d => {
+    csv += [d.subject,d.block,d.trial,d.type,d.display,d.pos,d.target,d.distractor,d.choice,d.correct,d.rt].join(",") + "\n";
+  });
+  const blob = new Blob(["\ufeff" + csv], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = subjectId + "_word_superiority.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
